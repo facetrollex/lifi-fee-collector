@@ -2,9 +2,6 @@ import { BigNumber, ethers } from 'ethers'; // please use ethers v5 to ensure co
 import { FeeCollector__factory } from 'lifi-contract-types';
 import { BlockTag } from '@ethersproject/abstract-provider';
 
-const CONTRACT_ADDRESS = '0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9';
-const POLYGON_RPC = 'https://polygon-rpc.com';
-
 interface ParsedFeeCollectedEvents {
   transactionHash: string;
   logIndex: number;
@@ -15,53 +12,67 @@ interface ParsedFeeCollectedEvents {
   lifiFee: BigNumber; // the share collected for lifi
 }
 
-/**
- * For a given block range all `FeesCollected` events are loaded from the Polygon FeeCollector
- * @param fromBlock
- * @param toBlock
- */
-const loadFeeCollectorEvents = (fromBlock: BlockTag, toBlock: BlockTag): Promise<ethers.Event[]> => {
-  const feeCollector = new ethers.Contract(
-    CONTRACT_ADDRESS,
-    FeeCollector__factory.createInterface(),
-    new ethers.providers.JsonRpcProvider(POLYGON_RPC)
-  );
-  const filter = feeCollector.filters.FeesCollected();
-  return feeCollector.queryFilter(filter, fromBlock, toBlock);
-}
+class Rpc {
+  private feeCollectorContract: ethers.Contract;
 
-/**
- * Takes a list of raw events and parses them into ParsedFeeCollectedEvents
- * @param events
- */
-const parseFeeCollectorEvents = (
-  events: ethers.Event[],
-): ParsedFeeCollectedEvents[] => {
-  const feeCollectorContract = new ethers.Contract(
-    CONTRACT_ADDRESS,
-    FeeCollector__factory.createInterface(),
-    new ethers.providers.JsonRpcProvider(POLYGON_RPC)
-  );
+  constructor(contractAddress: string, rpcUrl: string) {
+    this.feeCollectorContract = new ethers.Contract(
+        contractAddress, 
+        FeeCollector__factory.createInterface(), 
+        new ethers.providers.JsonRpcProvider(rpcUrl)
+    );
+  }
 
-  return events.map(event => {
-    const parsedEvent = feeCollectorContract.interface.parseLog(event);
+  /**
+   * For a given block range all `FeesCollected` events are loaded from the Polygon FeeCollector
+   * @param fromBlock
+   * @param toBlock
+  */
+  public async loadFeeCollectorEvents(fromBlock: BlockTag, toBlock: BlockTag): Promise<ethers.Event[]> {
+    const filter = this.feeCollectorContract.filters.FeesCollected();
+    return this.feeCollectorContract.queryFilter(filter, fromBlock, toBlock);
+  }
 
-    const feesCollected: ParsedFeeCollectedEvents = {
-      transactionHash: event.transactionHash,
-      logIndex: event.logIndex,
-      blockNumber: event.blockNumber,
-      token: parsedEvent.args[0],
-      integrator: parsedEvent.args[1],
-      integratorFee: BigNumber.from(parsedEvent.args[2]),
-      lifiFee: BigNumber.from(parsedEvent.args[3]),
-    };
-    
-    return feesCollected;
-  });
+  /**
+   * Takes a list of raw events and parses them into ParsedFeeCollectedEvents
+   * @param events
+  */
+  public async parseFeeCollectorEvents(events: ethers.Event[]): Promise<ParsedFeeCollectedEvents[]> {
+    return events.map(event => {
+      const parsedEvent = this.feeCollectorContract.interface.parseLog(event);
+      return {
+        transactionHash: event.transactionHash,
+        logIndex: event.logIndex,
+        blockNumber: event.blockNumber,
+        token: parsedEvent.args[0],
+        integrator: parsedEvent.args[1],
+        integratorFee: BigNumber.from(parsedEvent.args[2]),
+        lifiFee: BigNumber.from(parsedEvent.args[3]),
+      };
+    });
+  }
+  
+  /**
+   * Verify the RPC is reachable and the contract address is valid.
+   * Throws if either check fails.
+   */
+  public async testConnection(): Promise<void> {
+    const provider = this.feeCollectorContract.provider;
+
+    await provider.getBlockNumber();
+
+    const code = await provider.getCode(this.feeCollectorContract.address);
+    if (code === '0x') {
+      throw new Error(`No contract deployed at ${this.feeCollectorContract.address}`);
+    }
+  }
+
+  public async getMaxBlock(): Promise<number> {
+    return await this.feeCollectorContract.provider.getBlockNumber();
+  }
 }
 
 export {
-    ParsedFeeCollectedEvents, 
-    loadFeeCollectorEvents, 
-    parseFeeCollectorEvents 
+    Rpc,
+    type ParsedFeeCollectedEvents
 };

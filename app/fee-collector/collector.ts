@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js';
 import { collectorConfig, polygonConfig } from '../config.js';
-import { loadFeeCollectorEvents, parseFeeCollectorEvents, ParsedFeeCollectedEvents } from '../utils/rpc.js';
+import { Rpc, type ParsedFeeCollectedEvents } from '../utils/rpc.js';
 import { ethers } from 'ethers';
 import { claimNextRange, findLastBlock } from '../repositories/LastBlock.js';
 import {
@@ -13,9 +13,6 @@ import {
 import { upsertFeeEvents } from '../repositories/FeeEvent.js';
 import { withRetry } from '../utils/helpers.js';
 
-// TODO: replace with real chain-tip lookup (e.g. provider.getBlockNumber())
-const MAX_BLOCK = 78601000;
-
 
 class Collector {
   private readonly workerId: string;
@@ -25,6 +22,8 @@ class Collector {
     contractAddress: string;
     startPoint: number;
   };
+
+  private rpcClient: Rpc;
 
   constructor(workerId: string, integrator: string) {
     this.workerId = workerId;
@@ -37,6 +36,7 @@ class Collector {
           contractAddress: polygonConfig.contractAddress,
           startPoint: polygonConfig.startPoint,
         };
+        this.rpcClient = new Rpc(this.rpcConfiguration.contractAddress, this.rpcConfiguration.rpcUrl);
         break;
       default:
         throw new Error(`Unsupported integrator: ${this.integrator}`);
@@ -67,7 +67,7 @@ class Collector {
       // Stage 2: Load Fee Collector Events
       logger.info(`[${this.workerId}] Stage 2: Loading Fee Collector Events.`);
 
-      const events: ethers.Event[] = await loadFeeCollectorEvents(job.fromBlock, job.toBlock);
+      const events: ethers.Event[] = await this.rpcClient.loadFeeCollectorEvents(job.fromBlock, job.toBlock);
 
       logger.info(`[${this.workerId}] Stage 2: Completed. Loaded ${events.length} Fee Collector Events.`);
       //--------------------------------
@@ -75,7 +75,7 @@ class Collector {
       // Stage 3: Parse Fee Collector Events
       logger.info(`[${this.workerId}] Stage 3: Parsing Fee Collector Events.`);
 
-      const parsedEvents: ParsedFeeCollectedEvents[] = parseFeeCollectorEvents(events);
+      const parsedEvents: ParsedFeeCollectedEvents[] = await this.rpcClient.parseFeeCollectorEvents(events);
 
       logger.info(`[${this.workerId}] Stage 3: Completed. Parsed ${parsedEvents.length} Fee Collector Events.`);
       //--------------------------------
@@ -116,8 +116,10 @@ class Collector {
       );
     } else {
       const cursor = await findLastBlock(this.integrator);
-      if (cursor !== null && cursor >= MAX_BLOCK) {
-        logger.debug(`[${this.workerId}] Stage 1 — cursor ${cursor} >= MAX_BLOCK ${MAX_BLOCK}, idle`);
+      const maxBlock = await this.rpcClient.getMaxBlock();
+
+      if (cursor !== null && cursor >= maxBlock) {
+        logger.debug(`[${this.workerId}] Stage 1 — cursor ${cursor} >= MAX_BLOCK ${maxBlock}, idle`);
         return null;
       }
 
