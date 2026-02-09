@@ -2,7 +2,7 @@ import express, { type Express } from 'express';
 import { logger } from './utils/logger.js';
 import { connectDB, disconnectDB } from './utils/mongo.js';
 import { appConfig } from './config.js';
-import { FeeEventModel } from './repositories/FeeEvent.js';
+import { findFeeEvents } from './repositories/FeeEvent.js';
 
 async function main(): Promise<void> {
   await connectDB();
@@ -21,14 +21,7 @@ async function main(): Promise<void> {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
-        FeeEventModel.find({ integrator })
-          .sort({ blockNumber: -1, logIndex: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        FeeEventModel.countDocuments({ integrator }),
-      ]);
+      const { data, total } = await findFeeEvents(integrator, skip, limit);
 
       res.json({
         data,

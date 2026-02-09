@@ -52,6 +52,8 @@ class Rpc {
     });
   }
   
+  // TODO: NEED TO move this at the top of collector initiation, just to verify that the chain
+  // is reachable and the contract address is valid.
   /**
    * Verify the RPC is reachable and the contract address is valid.
    * Throws if either check fails.

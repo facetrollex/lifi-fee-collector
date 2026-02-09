@@ -7,10 +7,13 @@ async function withRetry<T>(
   ): Promise<T> {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        attempt > 1 && logger.debug(`Processing retry ${attempt} of ${maxAttempts}.`);
         return await fn();
       } catch (err) {
         if (attempt === maxAttempts) {
-            logger.error(`Retry failed after ${maxAttempts} attempts. Error: ${err}`);
+            logger.error(
+                `Retry failed after ${maxAttempts} attempts. Error: ${err}`
+            );
             throw err;
         }
         await new Promise((r) => setTimeout(r, delayMs * attempt)); // linear backoff: 2,4,6 secs

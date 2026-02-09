@@ -69,4 +69,24 @@ const upsertFeeEvents = async (
   return result.upsertedCount;
 };
 
-export { FeeEventModel, upsertFeeEvents };
+/**
+ * Find fee events by integrator with pagination, sorted by blockNumber desc.
+ */
+const findFeeEvents = async (
+  integrator: string,
+  skip: number,
+  limit: number,
+): Promise<{ data: FeeEvent[]; total: number }> => {
+  const [data, total] = await Promise.all([
+    FeeEventModel.find({ integrator })
+      .sort({ blockNumber: -1, logIndex: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    FeeEventModel.countDocuments({ integrator }),
+  ]);
+
+  return { data, total };
+};
+
+export { FeeEventModel, upsertFeeEvents, findFeeEvents };

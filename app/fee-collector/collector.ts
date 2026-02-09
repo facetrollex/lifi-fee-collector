@@ -50,20 +50,22 @@ class Collector {
    * Returns `true` if a batch was processed, `false` if nothing to do (caller should sleep).
    */
   async collect(): Promise<boolean> {
-
-    // Stage 1: Claim the Job
-    logger.info(`[${this.workerId}] Stage 1: Claim the Job.`);
-
-    const job: BlockJobDoc | null = await withRetry(() => this.claimJob());
-
-    if(!job) {
-      return false;
-    }
-
-    logger.info(`[${this.workerId}] Stage 1: Job claimed successfully. ID: ${job._id}`);
-    //--------------------------------
+    let job: BlockJobDoc | null = null;
 
     try {
+      // Stage 1: Claim the Job
+      logger.info(`[${this.workerId}] Stage 1: Claim the Job.`);
+
+      job = await withRetry(() => this.claimJob());
+
+      if(!job) {
+        return false;
+      }
+
+      logger.info(`[${this.workerId}] Stage 1: Job claimed successfully. ID: ${job._id}`);
+      //--------------------------------
+
+
       // Stage 2: Load Fee Collector Events
       logger.info(`[${this.workerId}] Stage 2: Loading Fee Collector Events.`);
 
@@ -97,14 +99,17 @@ class Collector {
       //--------------------------------
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      await markFailed(job._id, errorMsg);
-      logger.error(
-        `[${this.workerId}] job ${job._id} failed: ${errorMsg}`,
-      );
-      return true; // We did attempt work; another iteration may retry it.
+
+      if(job) {
+        await markFailed(job._id, errorMsg);
+        logger.error(
+          `[${this.workerId}] job ${job._id} failed: ${errorMsg}`,
+        );
+        return false;
+      }
     }
 
-    return true;
+    return true; // We did attempt work; another iteration may retry it.
   }
 
   private async claimJob(): Promise<BlockJobDoc | null> { 
