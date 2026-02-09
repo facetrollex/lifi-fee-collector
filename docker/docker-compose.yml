@@ -1,0 +1,17 @@
+services:
+  lf-fee-collector:
+    container_name: LIFI_Fee_Collector
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "9999:9999"
+    volumes:
+      - ../app:/usr/src/app
+      - /usr/src/app/node_modules
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

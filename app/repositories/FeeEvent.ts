@@ -1,0 +1,72 @@
+import { getModelForClass, index, modelOptions, prop } from '@typegoose/typegoose';
+import type { ParsedFeeCollectedEvents } from '../utils/rpc.js';
+
+@index({ transactionHash: 1, logIndex: 1 }, { unique: true })
+@modelOptions({ schemaOptions: { collection: 'feeEvents' } })
+class FeeEvent {
+  @prop({ required: true, type: String })
+  public integrator!: string;
+
+  @prop({ required: true, type: String })
+  public transactionHash!: string;
+
+  @prop({ required: true, type: Number })
+  public logIndex!: number;
+
+  @prop({ required: true, type: Number })
+  public blockNumber!: number;
+
+  @prop({ required: true, type: String })
+  public token!: string;
+
+  @prop({ required: true, type: String })
+  public eventIntegrator!: string;
+
+  @prop({ required: true, type: String })
+  public integratorFee!: string;
+
+  @prop({ required: true, type: String })
+  public lifiFee!: string;
+
+  @prop({ required: false, type: Date, default: Date.now })
+  public createdAt!: Date;
+}
+
+const FeeEventModel = getModelForClass(FeeEvent);
+
+/**
+ * Upsert parsed fee events into the database.
+ * Uses `{transactionHash, logIndex}` as the dedup key so re-processing
+ * the same block range is safe (idempotent).
+ */
+const upsertFeeEvents = async (
+  integrator: string,
+  events: ParsedFeeCollectedEvents[],
+): Promise<number> => {
+  if (events.length === 0) return 0;
+
+  const ops = events.map((e) => ({
+    updateOne: {
+      filter: { transactionHash: e.transactionHash, logIndex: e.logIndex },
+      update: {
+        $setOnInsert: {
+          integrator,
+          transactionHash: e.transactionHash,
+          logIndex: e.logIndex,
+          blockNumber: e.blockNumber,
+          token: e.token,
+          eventIntegrator: e.integrator,
+          integratorFee: e.integratorFee.toString(),
+          lifiFee: e.lifiFee.toString(),
+          createdAt: new Date(),
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  const result = await FeeEventModel.bulkWrite(ops, { ordered: false });
+  return result.upsertedCount;
+};
+
+export { FeeEventModel, upsertFeeEvents };

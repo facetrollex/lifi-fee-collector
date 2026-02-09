@@ -1,0 +1,23 @@
+{
+  "name": "lf-fee-collector-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sh dev.sh"
+  },
+  "dependencies": {
+    "@typegoose/typegoose": "latest",
+    "dotenv": "latest",
+    "ethers": "^5",
+    "express": "latest",
+    "lifi-contract-types": "git@github.com:lifinance/lifi-contract-types.git",
+    "mongoose": "latest",
+    "winston": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
