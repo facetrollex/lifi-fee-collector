@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger.js';
-import { collectorConfig, polygonConfig } from '../config.js';
+import { collectorConfig, chainConfig } from '../config.js';
 import { Rpc, type ParsedFeeCollectedEvents } from '../utils/rpc.js';
 import { ethers } from 'ethers';
 import { seedCursor, claimNextRange } from '../repositories/LastBlock.js';
@@ -31,10 +31,20 @@ class Collector {
 
     switch(this.integrator) {
       case 'polygon':
+        if (!chainConfig.rpcUrl || !chainConfig.contractAddress || !chainConfig.startPoint) {
+          throw new Error(`Invalid chain config for ${this.integrator}: RPC_URL, CONTRACT_ADDRESS and START_POINT are required`);
+        }
+
+        const startPoint = Number(chainConfig.startPoint);
+
+        if (Number.isNaN(startPoint)) {
+          throw new Error(`Invalid chain config for ${this.integrator}: START_POINT must be a number`);
+        }
+
         this.rpcConfiguration = {
-          rpcUrl: polygonConfig.rpcUrl,
-          contractAddress: polygonConfig.contractAddress,
-          startPoint: polygonConfig.startPoint,
+          rpcUrl: chainConfig.rpcUrl,
+          contractAddress: chainConfig.contractAddress,
+          startPoint,
         };
         this.rpcClient = new Rpc(this.rpcConfiguration.contractAddress, this.rpcConfiguration.rpcUrl);
         break;
@@ -56,17 +66,16 @@ class Collector {
       // Stage 1: Claim the Job
       logger.info(`[${this.workerId}] Stage 1: Claim the Job.`);
 
-      job = await withRetry(() => this.claimJob());
+      job = await withRetry(() => this.claimJob(), this.workerId);
 
       if(!job) {
         return false;
       }
 
       const jobId = job._id;
-      
+
       logger.info(`[${this.workerId}] Stage 1: Job claimed successfully. ID: ${jobId}`);
       //--------------------------------
-
 
       // Stage 2: Load Fee Collector Events
       logger.info(`[${this.workerId}] Stage 2: Loading Fee Collector Events.`);
@@ -87,7 +96,7 @@ class Collector {
       // Stage 4: Store Fee Collector Events into database
       logger.info(`[${this.workerId}] Stage 4: Storing Fee Collector Events into database.`);
 
-      const upserted = await withRetry(() => upsertFeeEvents(this.integrator, parsedEvents));
+      const upserted = await withRetry(() => upsertFeeEvents(this.integrator, parsedEvents), this.workerId);
 
       logger.info(`[${this.workerId}] Stage 4: Completed. Upserted ${upserted}/${parsedEvents.length} Fee Collector Events.`);
       //--------------------------------
@@ -95,7 +104,7 @@ class Collector {
       // Stage 5: Mark job completed
       logger.info(`[${this.workerId}] Stage 5: Marking job completed.`);
 
-      await withRetry(() => markCompleted(jobId));
+      await withRetry(() => markCompleted(jobId), this.workerId);
 
       logger.info(`[${this.workerId}] Stage 5: Completed. Job ${jobId} done.`);
       //--------------------------------
@@ -103,15 +112,16 @@ class Collector {
       const errorMsg = err instanceof Error ? err.message : String(err);
 
       if(job) {
-        await markFailed(job._id, errorMsg);
+        const failedJobId = job._id
+        await withRetry(() => markFailed(failedJobId, errorMsg), this.workerId);
         logger.error(
-          `[${this.workerId}] job ${job._id} failed: ${errorMsg}`,
+          `[${this.workerId}] job ${failedJobId} failed: ${errorMsg}`,
         );
         return false;
       }
     }
 
-    return true; // We did attempt work; another iteration may retry it.
+    return true; // We did scrape/store attempt, in case of error another iteration may retry it.
   }
 
   private async claimJob(): Promise<BlockJobDoc | null> { 
@@ -124,7 +134,7 @@ class Collector {
     } else {
       const maxBlock = await this.rpcClient.getMaxBlock(); // In chain
 
-      await seedCursor(this.integrator, this.rpcConfiguration.startPoint);
+      //await seedCursor(this.integrator, this.rpcConfiguration.startPoint);
 
       const range = await claimNextRange(this.integrator, collectorConfig.batchSize, maxBlock);
 
@@ -144,6 +154,16 @@ class Collector {
     }
 
     return job;
+  }
+
+  public async seedCursor(): Promise<void> {
+    logger.debug(`[${this.workerId}] Seeding cursor for ${this.integrator} chain, cursor: ${this.rpcConfiguration.startPoint}`);
+    return withRetry(() => seedCursor(this.integrator, this.rpcConfiguration.startPoint), this.workerId);
+  }
+
+  public async testConnection(): Promise<void> {
+    logger.debug(`[${this.workerId}] Testing connection to ${this.integrator} chain.`);
+    await this.rpcClient.testConnection();
   }
 }
 

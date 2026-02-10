@@ -13,6 +13,9 @@ async function main(): Promise<void> {
 
   const collector: Collector = new Collector(workerId, activeChain);
 
+  await collector.testConnection();
+  await collector.seedCursor();
+
   while (true) {
     const didWork = await collector.collect();
 
@@ -35,23 +38,23 @@ main().catch(async (err) => {
 });
 
 process.on('SIGINT', async () => {
-  await disconnectDB();
+  await disconnectDB(workerId);
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  await disconnectDB();
+  await disconnectDB(workerId);
   process.exit(0);
 });
 
 process.on('uncaughtException', async (err) => {
   logger.error(err);
-  await disconnectDB();
+  await disconnectDB(workerId);
   process.exit(1);
 });
 
 process.on('unhandledRejection', async (err) => {
   logger.error(err);
-  await disconnectDB();
+  await disconnectDB(workerId);
   process.exit(1);
 });

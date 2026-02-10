@@ -1,18 +1,32 @@
 import { logger } from './logger.js';
+import { connectDB, testDBConnection } from './mongo.js';
 
+
+// Retry function which is used for database related operations.
 async function withRetry<T>(
     fn: () => Promise<T>,
+    entity: string,
     maxAttempts: number = 3,
     delayMs: number = 2000,
   ): Promise<T> {
+    let connection = false;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        attempt > 1 && logger.debug(`Processing retry ${attempt} of ${maxAttempts}.`);
+
+        if(attempt > 1) {
+          logger.debug(`[${entity}] Processing retry ${attempt} of ${maxAttempts}.`);
+          connection = await testDBConnection();
+          if(!connection) {
+            logger.debug(`[${entity}] Database connection lost, reconnecting...`);
+            await connectDB(entity);
+          }
+        }
+        
         return await fn();
       } catch (err) {
         if (attempt === maxAttempts) {
             logger.error(
-                `Retry failed after ${maxAttempts} attempts. Error: ${err}`
+                `[${entity}] Retry failed after ${maxAttempts} attempts. Error: ${err}`
             );
             throw err;
         }

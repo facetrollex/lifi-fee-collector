@@ -20,10 +20,10 @@ const collectorConfig = {
 
 const activeChain = process.env.ACTIVE_CHAIN || 'polygon';
 
-const polygonConfig = {
-    rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
-    contractAddress: process.env.POLYGON_CONTRACT_ADDRESS || '0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9',
-    startPoint: Number(process.env.POLYGON_START_POINT) || 78600000,
+const chainConfig = {
+    rpcUrl: process.env.RPC_URL,
+    contractAddress: process.env.CONTRACT_ADDRESS,
+    startPoint: process.env.START_POINT,
 };
 
 export {
@@ -31,5 +31,5 @@ export {
     dbConfig,
     collectorConfig,
     activeChain,
-    polygonConfig,
+    chainConfig,
 }

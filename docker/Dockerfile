@@ -10,4 +10,6 @@ COPY app/ ./
 COPY docker/start-service.sh /usr/local/bin/start-service.sh
 RUN chmod +x /usr/local/bin/start-service.sh
 
+# fallback, actually managed by compose file
 CMD ["sh", "/usr/local/bin/start-service.sh", "api"]
+CMD ["sh", "/usr/local/bin/start-service.sh", "worker"]

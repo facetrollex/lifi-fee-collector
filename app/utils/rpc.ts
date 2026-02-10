@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from 'ethers'; // please use ethers v5 to ensure compatibility
 import { FeeCollector__factory } from 'lifi-contract-types';
-import { BlockTag } from '@ethersproject/abstract-provider';
+import { BlockTag, type Provider } from '@ethersproject/abstract-provider';
 
 interface ParsedFeeCollectedEvents {
   transactionHash: string;
@@ -14,6 +14,7 @@ interface ParsedFeeCollectedEvents {
 
 class Rpc {
   private feeCollectorContract: ethers.Contract;
+  private provider: Provider;
 
   constructor(contractAddress: string, rpcUrl: string) {
     this.feeCollectorContract = new ethers.Contract(
@@ -21,6 +22,8 @@ class Rpc {
         FeeCollector__factory.createInterface(), 
         new ethers.providers.JsonRpcProvider(rpcUrl)
     );
+
+    this.provider = this.feeCollectorContract.provider;
   }
 
   /**
@@ -52,25 +55,22 @@ class Rpc {
     });
   }
   
-  // TODO: NEED TO move this at the top of collector initiation, just to verify that the chain
-  // is reachable and the contract address is valid.
   /**
    * Verify the RPC is reachable and the contract address is valid.
    * Throws if either check fails.
    */
   public async testConnection(): Promise<void> {
-    const provider = this.feeCollectorContract.provider;
 
-    await provider.getBlockNumber();
+    await this.getMaxBlock();
 
-    const code = await provider.getCode(this.feeCollectorContract.address);
+    const code = await this.provider.getCode(this.feeCollectorContract.address);
     if (code === '0x') {
       throw new Error(`No contract deployed at ${this.feeCollectorContract.address}`);
     }
   }
 
   public async getMaxBlock(): Promise<number> {
-    return await this.feeCollectorContract.provider.getBlockNumber();
+    return await this.provider.getBlockNumber();
   }
 }
 
