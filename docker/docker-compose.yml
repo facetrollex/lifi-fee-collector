@@ -11,7 +11,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    command: sh -c "npm install --no-audit --no-fund && if [ \"$${APP_ENV:-development}\" = \"development\" ]; then npm run dev:api; else npm run build && npm run start:api; fi"
+    command: ["sh", "/usr/local/bin/start-service.sh", "api"]
     ports:
       - "${API_PORT}:${API_PORT}"
     volumes:
@@ -29,7 +29,7 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
-    command: sh -c "npm install --no-audit --no-fund && if [ \"$${APP_ENV:-development}\" = \"development\" ]; then npm run dev:worker; else npm run build && npm run start:worker; fi"
+    command: ["sh", "/usr/local/bin/start-service.sh", "worker"]
     volumes:
       - ../app:/usr/src/app
       - /usr/src/app/node_modules

@@ -7,5 +7,7 @@ COPY app/package-lock.json ./
 RUN npm install
 
 COPY app/ ./
+COPY docker/start-service.sh /usr/local/bin/start-service.sh
+RUN chmod +x /usr/local/bin/start-service.sh
 
-CMD ["sh", "-c", "if [ \"${APP_ENV:-development}\" = \"development\" ]; then npm run dev:api; else npm run build && npm run start:api; fi"]
+CMD ["sh", "/usr/local/bin/start-service.sh", "api"]
