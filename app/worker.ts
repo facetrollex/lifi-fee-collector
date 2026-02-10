@@ -1,6 +1,6 @@
 import { logger } from './utils/logger.js';
 import { connectDB, disconnectDB } from './utils/mongo.js';
-import { collectorConfig, chainId } from './config.js';
+import { activeChain } from './config.js';
 import { Collector } from './fee-collector/collector.js';
 import { sleep } from './utils/helpers.js';
 
@@ -11,7 +11,7 @@ async function main(): Promise<void> {
 
   logger.info(`[${workerId}] is started.`);
 
-  const collector: Collector = new Collector(workerId, chainId);
+  const collector: Collector = new Collector(workerId, activeChain);
 
   await collector.testConnection();
   await collector.seedCursor();
@@ -23,15 +23,14 @@ async function main(): Promise<void> {
       logger.info(`[${workerId}] Nothing to do this iteration.`); 
     }
 
-    logger.info(`[${workerId}] Idle for ${collectorConfig.pollIntervalMs}ms`);
-
-    // Sleep between polls / iterations
-    await sleep(collectorConfig.pollIntervalMs);
+    const pollIntervalMs = collector.getPollIntervalMs();
+    logger.info(`[${workerId}] Idle for ${pollIntervalMs}ms (${collector.getMode()} mode)`);
+    await sleep(pollIntervalMs);
   }
 }
 
 main().catch(async (err) => {
-  logger.error('Critical error, exititing....');
+  logger.error(`[${workerId}] Critical error, shutting down.`);
   logger.error(err);
   await disconnectDB(workerId);
   process.exit(1);

@@ -15,14 +15,11 @@ const dbConfig = {
 const collectorConfig = {
     batchSize: Number(process.env.BATCH_SIZE) || 100,
     jobLeaseTtlMs: Number(process.env.JOB_LEASE_TTL_MS) || 120_000,
-    pollIntervalMs: Number(process.env.POLL_INTERVAL_MS) || 5_000,
+    historicalpollIntervalMs: Number(process.env.HISTORICAL_POLL_INTERVAL_MS) || 5_000,
+    realtimePollIntervalMs: Number(process.env.REALTIME_POLL_INTERVAL_MS) || 60_000,
 };
 
-const chainId = Number(process.env.ACTIVE_CHAIN || 137);
-
-if (Number.isNaN(chainId)) {
-    throw new Error('Invalid ACTIVE_CHAIN: expected number');
-}
+const activeChain = Number(process.env.ACTIVE_CHAIN);
 
 const chainConfig = {
     rpcUrl: process.env.RPC_URL,
@@ -34,6 +31,6 @@ export {
     appConfig,
     dbConfig,
     collectorConfig,
-    chainId,
+    activeChain,
     chainConfig,
 }

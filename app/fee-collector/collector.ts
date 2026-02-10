@@ -13,6 +13,8 @@ import {
 import { upsertFeeEvents } from '../repositories/FeeEvent.js';
 import { withRetry } from '../utils/helpers.js';
 
+type CollectorMode = 'historical' | 'realtime';
+
 
 class Collector {
   private readonly workerId: string;
@@ -22,6 +24,7 @@ class Collector {
     contractAddress: string;
     startPoint: number;
   };
+  private mode: CollectorMode = 'historical';
 
   private rpcClient: Rpc;
 
@@ -106,18 +109,26 @@ class Collector {
       //--------------------------------
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error(`[${this.workerId}] Job failed: ${errorMsg}`);
 
       if(job) {
         const failedJobId = job._id
         await withRetry(() => markFailed(failedJobId, errorMsg), this.workerId);
-        logger.error(
-          `[${this.workerId}] job ${failedJobId} failed: ${errorMsg}`,
-        );
         return false;
       }
     }
 
     return true; // We did scrape/store attempt, in case of error another iteration may retry it.
+  }
+
+  public async seedCursor(): Promise<void> {
+    logger.debug(`[${this.workerId}] Seeding cursor for chain id ${this.chainId}, cursor: ${this.rpcConfiguration.startPoint}`);
+    return withRetry(() => seedCursor(this.chainId, this.rpcConfiguration.startPoint), this.workerId);
+  }
+
+  public async testConnection(): Promise<void> {
+    logger.debug(`[${this.workerId}] Testing connection to chain id ${this.chainId}.`);
+    await this.rpcClient.testConnection(this.chainId);
   }
 
   private async claimJob(): Promise<BlockJobDoc | null> { 
@@ -132,11 +143,14 @@ class Collector {
       const range = await claimNextRange(this.chainId, collectorConfig.batchSize, maxBlock);
 
       if (!range) {
+        this.changeMode('realtime');
         logger.debug(`[${this.workerId}] Stage 1 — no blocks available below chain tip ${maxBlock}, idle`);
         return null;
       }
 
       const { fromBlock, toBlock } = range;
+      const lagBlocks = maxBlock - toBlock;
+      this.updateModeByLag(lagBlocks);
 
       job = await createJob(this.chainId, fromBlock, toBlock, this.workerId, collectorConfig.jobLeaseTtlMs);
 
@@ -149,16 +163,42 @@ class Collector {
     return job;
   }
 
-  public async seedCursor(): Promise<void> {
-    logger.debug(`[${this.workerId}] Seeding cursor for chain id ${this.chainId}, cursor: ${this.rpcConfiguration.startPoint}`);
-    return withRetry(() => seedCursor(this.chainId, this.rpcConfiguration.startPoint), this.workerId);
+  private changeMode(mode: CollectorMode): void {
+    if (this.mode === mode) {
+      return;
+    }
+
+    logger.debug(`[${this.workerId}] Changing mode from ${this.mode} to ${mode}.`);
+    this.mode = mode;
   }
 
-  public async testConnection(): Promise<void> {
-    logger.debug(`[${this.workerId}] Testing connection to chain id ${this.chainId}.`);
-    await this.rpcClient.testConnection(this.chainId);
+  private updateModeByLag(lagBlocks: number): void {
+    const realtimeEnterLagThreshold = collectorConfig.batchSize;
+    const historicalEnterLagThreshold = collectorConfig.batchSize * 5;
+
+    if (this.mode === 'historical' && lagBlocks <= realtimeEnterLagThreshold) {
+      this.changeMode('realtime');
+      return;
+    }
+
+    if (this.mode === 'realtime' && lagBlocks >= historicalEnterLagThreshold) {
+      this.changeMode('historical');
+    }
+  }
+  
+  public getMode(): CollectorMode {
+    return this.mode;
+  }
+
+  public getPollIntervalMs(): number {
+    return this.mode === 'realtime'
+      ? collectorConfig.realtimePollIntervalMs
+      : collectorConfig.historicalpollIntervalMs;
   }
 }
 
 
-export { Collector };
+export { 
+  Collector, 
+  type CollectorMode 
+};
