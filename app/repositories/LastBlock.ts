@@ -28,43 +28,58 @@ const updateLastBlock = async (integrator: string, blockNumber: number): Promise
 };
 
 /**
+ * Ensures a cursor document exists for the given integrator.
+ * If the document already exists this is a no-op ($setOnInsert is skipped).
+ */
+const seedCursor = async (integrator: string, startPoint: number): Promise<void> => {
+  await LastBlockModel.updateOne(
+    { integrator },
+    { $setOnInsert: { integrator, blockNumber: startPoint, updatedAt: new Date() } },
+    { upsert: true },
+  );
+};
+
+/**
  * Atomically advances the cursor by `batchSize` and returns the claimed range.
- * On first call for a given integrator, seeds the cursor from `startPoint`.
- * Returns `{ fromBlock, toBlock }`.
+ * The cursor is only advanced when `blockNumber < maxBlock`, preventing workers
+ * from claiming ranges beyond the current chain tip.
+ * Returns `null` if no range is available (cursor already >= maxBlock).
  */
 const claimNextRange = async (
   integrator: string,
   batchSize: number,
-  startPoint: number,
-): Promise<{ fromBlock: number; toBlock: number }> => {
+  maxBlock: number,
+): Promise<{ fromBlock: number; toBlock: number } | null> => {
   const doc = await LastBlockModel.findOneAndUpdate(
-    { integrator },
     {
-      $setOnInsert: { integrator },
-      $inc: { blockNumber: batchSize },
-      $set: { updatedAt: new Date() },
+      integrator,
+      blockNumber: { $lt: maxBlock },
     },
-    { upsert: true, new: false, setDefaultsOnInsert: true },
+    [
+      {
+        $set: {
+          updatedAt: new Date(),
+          blockNumber: {
+            $min: [{ $add: ['$blockNumber', batchSize] }, maxBlock + 1],
+          },
+        },
+      },
+    ],
+    { new: false, updatePipeline: true },
   );
 
-  // If doc is null this was the first upsert — cursor started at 0, so use startPoint
-  const fromBlock = doc?.blockNumber ?? startPoint;
-  const toBlock = fromBlock + batchSize - 1;
+  if (!doc) return null;
 
-  // If the upsert just created the document, blockNumber was 0 before $inc,
-  // so we need to correct the stored value to startPoint + batchSize.
-  if (!doc) {
-    await LastBlockModel.updateOne(
-      { integrator },
-      { blockNumber: startPoint + batchSize },
-    );
-  }
+  const fromBlock = doc.blockNumber;
+  const toBlock = Math.min(fromBlock + batchSize - 1, maxBlock);
 
   return { fromBlock, toBlock };
 };
 
-export { LastBlockModel, 
-    findLastBlock, 
-    updateLastBlock, 
-    claimNextRange 
+export { 
+  LastBlockModel, 
+  findLastBlock, 
+  updateLastBlock, 
+  seedCursor,
+  claimNextRange,
 };

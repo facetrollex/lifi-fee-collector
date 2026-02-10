@@ -2,7 +2,7 @@
     "name": "lifi-fee-collector",
     "private": true,
     "scripts": {
-      "dev": "sh dev.sh",
+      "dev": "cd app && npm run dev",
       "start": "docker compose -f docker/docker-compose.yml up --build",
       "setup": "npm run setup:config && npm run setup:modules",
       "setup:config": "cd docker && cp .env.example .env",

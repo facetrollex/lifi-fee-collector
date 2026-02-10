@@ -1,10 +1,4 @@
-FROM mongo:7
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-  && apt-get install -y --no-install-recommends nodejs \
-  && rm -rf /var/lib/apt/lists/*
+FROM node:20-bookworm-slim
 
 WORKDIR /usr/src/app
 
@@ -14,7 +8,4 @@ RUN npm install
 
 COPY app/ ./
 
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["sh", "-c", "if [ \"${APP_ENV:-development}\" = \"development\" ]; then npm run dev:api; else npm run build && npm run start:api; fi"]

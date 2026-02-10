@@ -2,7 +2,7 @@ import { logger } from '../utils/logger.js';
 import { collectorConfig, polygonConfig } from '../config.js';
 import { Rpc, type ParsedFeeCollectedEvents } from '../utils/rpc.js';
 import { ethers } from 'ethers';
-import { claimNextRange, findLastBlock } from '../repositories/LastBlock.js';
+import { seedCursor, claimNextRange } from '../repositories/LastBlock.js';
 import {
   createJob,
   claimExpiredOrFailed,
@@ -62,7 +62,9 @@ class Collector {
         return false;
       }
 
-      logger.info(`[${this.workerId}] Stage 1: Job claimed successfully. ID: ${job._id}`);
+      const jobId = job._id;
+      
+      logger.info(`[${this.workerId}] Stage 1: Job claimed successfully. ID: ${jobId}`);
       //--------------------------------
 
 
@@ -93,9 +95,9 @@ class Collector {
       // Stage 5: Mark job completed
       logger.info(`[${this.workerId}] Stage 5: Marking job completed.`);
 
-      await withRetry(() => markCompleted(job._id));
+      await withRetry(() => markCompleted(jobId));
 
-      logger.info(`[${this.workerId}] Stage 5: Completed. Job ${job._id} done.`);
+      logger.info(`[${this.workerId}] Stage 5: Completed. Job ${jobId} done.`);
       //--------------------------------
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -120,15 +122,18 @@ class Collector {
         `[${this.workerId}] Stage 1 — retrying job ${job._id}. Block range: [${job.fromBlock}..${job.toBlock}] (attempt: ${job.attempts})`,
       );
     } else {
-      const cursor = await findLastBlock(this.integrator);
-      const maxBlock = await this.rpcClient.getMaxBlock();
+      const maxBlock = await this.rpcClient.getMaxBlock(); // In chain
 
-      if (cursor !== null && cursor >= maxBlock) {
-        logger.debug(`[${this.workerId}] Stage 1 — cursor ${cursor} >= MAX_BLOCK ${maxBlock}, idle`);
+      await seedCursor(this.integrator, this.rpcConfiguration.startPoint);
+
+      const range = await claimNextRange(this.integrator, collectorConfig.batchSize, maxBlock);
+
+      if (!range) {
+        logger.debug(`[${this.workerId}] Stage 1 — no blocks available below chain tip ${maxBlock}, idle`);
         return null;
       }
 
-      const { fromBlock, toBlock } = await claimNextRange(this.integrator, collectorConfig.batchSize, this.rpcConfiguration.startPoint);
+      const { fromBlock, toBlock } = range;
 
       job = await createJob(this.integrator, fromBlock, toBlock, this.workerId, collectorConfig.jobLeaseTtlMs);
 

@@ -79,6 +79,7 @@ const findFeeEvents = async (
 ): Promise<{ data: FeeEvent[]; total: number }> => {
   const [data, total] = await Promise.all([
     FeeEventModel.find({ integrator })
+      .select('-_id -__v')
       .sort({ blockNumber: -1, logIndex: -1 })
       .skip(skip)
       .limit(limit)

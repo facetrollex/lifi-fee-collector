@@ -3,6 +3,7 @@ dist/
 build/
 
 docker/.env
+docker/db_data/
 
 *.log
 npm-debug.log*

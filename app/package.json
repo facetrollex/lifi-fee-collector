@@ -3,7 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "sh dev.sh"
+    "dev": "sh -c 'npm run dev:api & npm run dev:worker & wait'",
+    "dev:api": "tsx watch api.ts",
+    "dev:worker": "tsx watch worker.ts",
+    "build": "tsc --project tsconfig.json",
+    "start:api": "node dist/api.js",
+    "start:worker": "node dist/worker.js"
   },
   "dependencies": {
     "@typegoose/typegoose": "latest",

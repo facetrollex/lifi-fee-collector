@@ -1,17 +1,48 @@
+name: lifi-fee-collector
 services:
-  lf-fee-collector:
-    container_name: LIFI_Fee_Collector
+  api:
+    container_name: LIFI_Fee_Collector_API
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    image: lifi-fee-collector-node
     env_file:
       - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: sh -c "npm install --no-audit --no-fund && if [ \"$${APP_ENV:-development}\" = \"development\" ]; then npm run dev:api; else npm run build && npm run start:api; fi"
     ports:
-      - "9999:9999"
+      - "${API_PORT}:${API_PORT}"
     volumes:
       - ../app:/usr/src/app
       - /usr/src/app/node_modules
-      - mongo_data:/data/db
 
-volumes:
-  mongo_data:
+  worker:
+    container_name: LIFI_Fee_Collector_Worker
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: lifi-fee-collector-node
+    env_file:
+      - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: sh -c "npm install --no-audit --no-fund && if [ \"$${APP_ENV:-development}\" = \"development\" ]; then npm run dev:worker; else npm run build && npm run start:worker; fi"
+    volumes:
+      - ../app:/usr/src/app
+      - /usr/src/app/node_modules
+
+  mongo:
+    container_name: LIFI_Fee_Collector_Mongo
+    image: mongo:7
+    command: ["--logpath", "/data/db/mongod.log", "--logappend", "--quiet"]
+    volumes:
+      - ./db_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
