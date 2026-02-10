@@ -4,8 +4,8 @@ import type { ParsedFeeCollectedEvents } from '../utils/rpc.js';
 @index({ transactionHash: 1, logIndex: 1 }, { unique: true })
 @modelOptions({ schemaOptions: { collection: 'feeEvents' } })
 class FeeEvent {
-  @prop({ required: true, type: String })
-  public integrator!: string;
+  @prop({ required: true, type: Number })
+  public chainId!: number;
 
   @prop({ required: true, type: String })
   public transactionHash!: string;
@@ -40,7 +40,7 @@ const FeeEventModel = getModelForClass(FeeEvent);
  * the same block range is safe (idempotent).
  */
 const upsertFeeEvents = async (
-  integrator: string,
+  chainId: number,
   events: ParsedFeeCollectedEvents[],
 ): Promise<number> => {
   if (events.length === 0) return 0;
@@ -50,7 +50,7 @@ const upsertFeeEvents = async (
       filter: { transactionHash: e.transactionHash, logIndex: e.logIndex },
       update: {
         $setOnInsert: {
-          integrator,
+          chainId,
           transactionHash: e.transactionHash,
           logIndex: e.logIndex,
           blockNumber: e.blockNumber,
@@ -70,21 +70,21 @@ const upsertFeeEvents = async (
 };
 
 /**
- * Find fee events by integrator with pagination, sorted by blockNumber desc.
+ * Find fee events by chain id with pagination, sorted by blockNumber desc.
  */
 const findFeeEvents = async (
-  integrator: string,
+  chainId: number,
   skip: number,
   limit: number,
 ): Promise<{ data: FeeEvent[]; total: number }> => {
   const [data, total] = await Promise.all([
-    FeeEventModel.find({ integrator })
+    FeeEventModel.find({ chainId })
       .select('-_id -__v')
       .sort({ blockNumber: -1, logIndex: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    FeeEventModel.countDocuments({ integrator }),
+    FeeEventModel.countDocuments({ chainId }),
   ]);
 
   return { data, total };

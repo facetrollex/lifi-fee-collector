@@ -59,7 +59,14 @@ class Rpc {
    * Verify the RPC is reachable and the contract address is valid.
    * Throws if either check fails.
    */
-  public async testConnection(): Promise<void> {
+  public async testConnection(expectedChainId: number): Promise<void> {
+    const network = await this.provider.getNetwork();
+
+    if (network.chainId !== expectedChainId) {
+      throw new Error(
+        `Wrong RPC chain id: expected ${expectedChainId}, got ${network.chainId}`
+      );
+    }
 
     await this.getMaxBlock();
 

@@ -1,6 +1,6 @@
 import { logger } from './utils/logger.js';
 import { connectDB, disconnectDB } from './utils/mongo.js';
-import { collectorConfig, activeChain } from './config.js';
+import { collectorConfig, chainId } from './config.js';
 import { Collector } from './fee-collector/collector.js';
 import { sleep } from './utils/helpers.js';
 
@@ -9,9 +9,9 @@ const workerId = `Worker ${process.pid}`;
 async function main(): Promise<void> {
   await connectDB(workerId);
 
-  logger.info(`[${workerId}] is running...`);
+  logger.info(`[${workerId}] is started.`);
 
-  const collector: Collector = new Collector(workerId, activeChain);
+  const collector: Collector = new Collector(workerId, chainId);
 
   await collector.testConnection();
   await collector.seedCursor();
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
 main().catch(async (err) => {
   logger.error('Critical error, exititing....');
   logger.error(err);
-  await disconnectDB();
+  await disconnectDB(workerId);
   process.exit(1);
 });
 

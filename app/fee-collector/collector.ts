@@ -16,7 +16,7 @@ import { withRetry } from '../utils/helpers.js';
 
 class Collector {
   private readonly workerId: string;
-  private readonly integrator: string;
+  private readonly chainId: number;
   private rpcConfiguration: {
     rpcUrl: string;
     contractAddress: string;
@@ -25,34 +25,30 @@ class Collector {
 
   private rpcClient: Rpc;
 
-  constructor(workerId: string, integrator: string) {
+  constructor(workerId: string, chainId: number) {
     this.workerId = workerId;
-    this.integrator = integrator;
+    this.chainId = chainId;
 
-    switch(this.integrator) {
-      case 'polygon':
-        if (!chainConfig.rpcUrl || !chainConfig.contractAddress || !chainConfig.startPoint) {
-          throw new Error(`Invalid chain config for ${this.integrator}: RPC_URL, CONTRACT_ADDRESS and START_POINT are required`);
-        }
-
-        const startPoint = Number(chainConfig.startPoint);
-
-        if (Number.isNaN(startPoint)) {
-          throw new Error(`Invalid chain config for ${this.integrator}: START_POINT must be a number`);
-        }
-
-        this.rpcConfiguration = {
-          rpcUrl: chainConfig.rpcUrl,
-          contractAddress: chainConfig.contractAddress,
-          startPoint,
-        };
-        this.rpcClient = new Rpc(this.rpcConfiguration.contractAddress, this.rpcConfiguration.rpcUrl);
-        break;
-      default:
-        throw new Error(`Unsupported integrator: ${this.integrator}`);
+    if (!chainConfig.rpcUrl || !chainConfig.contractAddress || !chainConfig.startPoint) {
+      throw new Error(
+        `Invalid chain config for chain id ${this.chainId}: RPC_URL, CONTRACT_ADDRESS and START_POINT are required`
+      );
     }
 
-    logger.info(`[${this.workerId}] Stage 0: Provisioned ${this.integrator} integrator.`);
+    const startPoint = Number(chainConfig.startPoint);
+
+    if (Number.isNaN(startPoint)) {
+      throw new Error(`Invalid chain config for chain id ${this.chainId}: START_POINT must be a number`);
+    }
+
+    this.rpcConfiguration = {
+      rpcUrl: chainConfig.rpcUrl,
+      contractAddress: chainConfig.contractAddress,
+      startPoint,
+    };
+    this.rpcClient = new Rpc(this.rpcConfiguration.contractAddress, this.rpcConfiguration.rpcUrl);
+
+    logger.info(`[${this.workerId}] Stage 0: Provisioned chain id ${this.chainId}.`);
   }
 
   /**
@@ -96,7 +92,7 @@ class Collector {
       // Stage 4: Store Fee Collector Events into database
       logger.info(`[${this.workerId}] Stage 4: Storing Fee Collector Events into database.`);
 
-      const upserted = await withRetry(() => upsertFeeEvents(this.integrator, parsedEvents), this.workerId);
+      const upserted = await withRetry(() => upsertFeeEvents(this.chainId, parsedEvents), this.workerId);
 
       logger.info(`[${this.workerId}] Stage 4: Completed. Upserted ${upserted}/${parsedEvents.length} Fee Collector Events.`);
       //--------------------------------
@@ -125,7 +121,7 @@ class Collector {
   }
 
   private async claimJob(): Promise<BlockJobDoc | null> { 
-    let job: BlockJobDoc | null = await claimExpiredOrFailed(this.integrator, this.workerId, collectorConfig.jobLeaseTtlMs);
+    let job: BlockJobDoc | null = await claimExpiredOrFailed(this.chainId, this.workerId, collectorConfig.jobLeaseTtlMs);
 
     if (job) {
       logger.debug(
@@ -133,10 +129,7 @@ class Collector {
       );
     } else {
       const maxBlock = await this.rpcClient.getMaxBlock(); // In chain
-
-      //await seedCursor(this.integrator, this.rpcConfiguration.startPoint);
-
-      const range = await claimNextRange(this.integrator, collectorConfig.batchSize, maxBlock);
+      const range = await claimNextRange(this.chainId, collectorConfig.batchSize, maxBlock);
 
       if (!range) {
         logger.debug(`[${this.workerId}] Stage 1 — no blocks available below chain tip ${maxBlock}, idle`);
@@ -145,7 +138,7 @@ class Collector {
 
       const { fromBlock, toBlock } = range;
 
-      job = await createJob(this.integrator, fromBlock, toBlock, this.workerId, collectorConfig.jobLeaseTtlMs);
+      job = await createJob(this.chainId, fromBlock, toBlock, this.workerId, collectorConfig.jobLeaseTtlMs);
 
       logger.debug(
         `[${this.workerId}] Stage 1 — claimed new range ` +
@@ -157,13 +150,13 @@ class Collector {
   }
 
   public async seedCursor(): Promise<void> {
-    logger.debug(`[${this.workerId}] Seeding cursor for ${this.integrator} chain, cursor: ${this.rpcConfiguration.startPoint}`);
-    return withRetry(() => seedCursor(this.integrator, this.rpcConfiguration.startPoint), this.workerId);
+    logger.debug(`[${this.workerId}] Seeding cursor for chain id ${this.chainId}, cursor: ${this.rpcConfiguration.startPoint}`);
+    return withRetry(() => seedCursor(this.chainId, this.rpcConfiguration.startPoint), this.workerId);
   }
 
   public async testConnection(): Promise<void> {
-    logger.debug(`[${this.workerId}] Testing connection to ${this.integrator} chain.`);
-    await this.rpcClient.testConnection();
+    logger.debug(`[${this.workerId}] Testing connection to chain id ${this.chainId}.`);
+    await this.rpcClient.testConnection(this.chainId);
   }
 }
 

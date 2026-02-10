@@ -2,8 +2,8 @@ import { getModelForClass, modelOptions, prop } from '@typegoose/typegoose';
 
 @modelOptions({ schemaOptions: { collection: 'lastBlock' } })
 class LastBlock {
-  @prop({ required: true, unique: true, type: String })
-  public integrator!: string;
+  @prop({ required: true, unique: true, type: Number })
+  public chainId!: number;
 
   @prop({ required: true, type: Number })
   public blockNumber!: number;
@@ -14,27 +14,27 @@ class LastBlock {
 
 const LastBlockModel = getModelForClass(LastBlock);
 
-const findLastBlock = async (integrator: string): Promise<number | null> => {
-  const doc = await LastBlockModel.findOne({ integrator });
+const findLastBlock = async (chainId: number): Promise<number | null> => {
+  const doc = await LastBlockModel.findOne({ chainId });
   return doc?.blockNumber ?? null;
 };
 
-const updateLastBlock = async (integrator: string, blockNumber: number): Promise<void> => {
+const updateLastBlock = async (chainId: number, blockNumber: number): Promise<void> => {
   await LastBlockModel.updateOne(
-    { integrator },
+    { chainId },
     { blockNumber, updatedAt: new Date() },
     { upsert: true },
   );
 };
 
 /**
- * Ensures a cursor document exists for the given integrator.
+ * Ensures a cursor document exists for the given chain id.
  * If the document already exists this is a no-op ($setOnInsert is skipped).
  */
-const seedCursor = async (integrator: string, startPoint: number): Promise<void> => {
+const seedCursor = async (chainId: number, startPoint: number): Promise<void> => {
   await LastBlockModel.updateOne(
-    { integrator },
-    { $setOnInsert: { integrator, blockNumber: startPoint, updatedAt: new Date() } },
+    { chainId },
+    { $setOnInsert: { chainId, blockNumber: startPoint, updatedAt: new Date() } },
     { upsert: true },
   );
 };
@@ -46,13 +46,13 @@ const seedCursor = async (integrator: string, startPoint: number): Promise<void>
  * Returns `null` if no range is available (cursor already >= maxBlock).
  */
 const claimNextRange = async (
-  integrator: string,
+  chainId: number,
   batchSize: number,
   maxBlock: number,
 ): Promise<{ fromBlock: number; toBlock: number } | null> => {
   const doc = await LastBlockModel.findOneAndUpdate(
     {
-      integrator,
+      chainId,
       blockNumber: { $lt: maxBlock },
     },
     [

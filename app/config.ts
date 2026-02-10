@@ -18,7 +18,11 @@ const collectorConfig = {
     pollIntervalMs: Number(process.env.POLL_INTERVAL_MS) || 5_000,
 };
 
-const activeChain = process.env.ACTIVE_CHAIN || 'polygon';
+const chainId = Number(process.env.ACTIVE_CHAIN || 137);
+
+if (Number.isNaN(chainId)) {
+    throw new Error('Invalid ACTIVE_CHAIN: expected number');
+}
 
 const chainConfig = {
     rpcUrl: process.env.RPC_URL,
@@ -30,6 +34,6 @@ export {
     appConfig,
     dbConfig,
     collectorConfig,
-    activeChain,
+    chainId,
     chainConfig,
 }

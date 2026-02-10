@@ -7,11 +7,11 @@ import {
 } from '@typegoose/typegoose';
 import type { Types } from 'mongoose';
 
-@index({ integrator: 1, fromBlock: 1 }, { unique: true })
+@index({ chainId: 1, fromBlock: 1 }, { unique: true })
 @modelOptions({ schemaOptions: { collection: 'blockJobs' } })
 class BlockJob {
-  @prop({ required: true, type: String })
-  public integrator!: string;
+  @prop({ required: true, type: Number })
+  public chainId!: number;
 
   @prop({ required: true, type: Number })
   public fromBlock!: number;
@@ -49,7 +49,7 @@ type BlockJobDoc = DocumentType<BlockJob>;
  * Create a new job in `processing` state, locked by the given worker.
  */
 const createJob = async (
-  integrator: string,
+  chainId: number,
   fromBlock: number,
   toBlock: number,
   workerId: string,
@@ -57,7 +57,7 @@ const createJob = async (
 ): Promise<BlockJobDoc> => {
   const now = new Date();
   return BlockJobModel.create({
-    integrator,
+    chainId,
     fromBlock,
     toBlock,
     status: 'processing',
@@ -75,14 +75,14 @@ const createJob = async (
  * Returns the claimed job, or `null` if none available.
  */
 const claimExpiredOrFailed = async (
-  integrator: string,
+  chainId: number,
   workerId: string,
   leaseTtlMs: number,
 ): Promise<BlockJobDoc | null> => {
   const now = new Date();
   return BlockJobModel.findOneAndUpdate(
     {
-      integrator,
+      chainId,
       attempts: { $lt: 10 }, // Max attempts for failed jobs
       $or: [
         { status: 'failed' },

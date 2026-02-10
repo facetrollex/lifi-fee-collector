@@ -16,12 +16,19 @@ async function main(): Promise<void> {
 
   app.get('/fees', async (req, res) => {
     try {
-      const integrator = (req.query.integrator as string) || 'polygon';
+      const integratorParam = req.query.integrator as string | undefined;
+      const chainId = integratorParam ? Number(integratorParam) : 137;
+
+      if (Number.isNaN(chainId)) {
+        res.status(400).json({ error: 'Invalid integrator value. Expected numeric chain id.' });
+        return;
+      }
+
       const page = Math.max(Number(req.query.page) || 1, 1);
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
       const skip = (page - 1) * limit;
 
-      const { data, total } = await findFeeEvents(integrator, skip, limit);
+      const { data, total } = await findFeeEvents(chainId, skip, limit);
 
       res.json({
         data,
