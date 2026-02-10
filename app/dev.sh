@@ -22,4 +22,8 @@ API_PID=$!
 tsx watch worker.ts &
 WORKER_PID=$!
 
+# Second instance
+# tsx watch worker.ts &
+# WORKER_PID=$!
+
 wait
