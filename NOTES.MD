@@ -135,3 +135,9 @@ Treat state with adaptive scheduling:
 - historical mode: run almost continuously while lag exists; don't sleep after successful work, only pause on errors/rate-limit pressure.
 - realtime mode: prefer push-based head updates (WebSocket newBlock), and keep HTTP polling as fallback with short interval + jitter + exponential backoff when chain is quiet.
 - Adaptive batch size: increase block range when responses are healthy, reduce on timeout/error
+
+
+### Api changes
+1. Cover /fees endpoint with authorization 
+2. validate params and authorization (if required) using middleware 
+3. add more endpoint(s) with cumulative stats 
