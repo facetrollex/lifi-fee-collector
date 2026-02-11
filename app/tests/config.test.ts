@@ -84,4 +84,28 @@ describe('config', () => {
       startPoint: '500',
     });
   });
+
+  it('falls back to defaults when collector numeric env vars are invalid', async () => {
+    process.env.BATCH_SIZE = 'invalid';
+    process.env.JOB_LEASE_TTL_MS = 'NaN';
+    process.env.HISTORICAL_POLL_INTERVAL_MS = 'bad';
+    process.env.REALTIME_POLL_INTERVAL_MS = 'oops';
+
+    const { collectorConfig } = await loadConfig();
+
+    expect(collectorConfig).toEqual({
+      batchSize: 100,
+      jobLeaseTtlMs: 120000,
+      historicalpollIntervalMs: 5000,
+      realtimePollIntervalMs: 60000,
+    });
+  });
+
+  it('keeps activeChain as NaN when ACTIVE_CHAIN is not numeric', async () => {
+    process.env.ACTIVE_CHAIN = 'polygon';
+
+    const { activeChain } = await loadConfig();
+
+    expect(Number.isNaN(activeChain)).toBe(true);
+  });
 });

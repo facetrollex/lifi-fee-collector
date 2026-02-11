@@ -72,14 +72,16 @@ consideration that we want this for all our EVM chains
 - Edge cases testing (aka lint process for logic from agent):
   - multiple instances -> single batch available (real-time scrape)
   - multiple instances -> error validation between steps, retry process
-  - integrator -> to chainId replacement process
+- integrator -> to chainId replacement process
+- Unit Testing (manual validation for cases)
 - Documentation
 
 ### Challenges / Blockers
 
 - Deduplication process (multiple instances) with MongoDB -> leaseExpired functionality added (for Jobs)
 - Batch size (for scraping): public polygon load balancer routes 'free tier' requests to various backend providers and some of them have extremely low or even broken eth_get_Logs limits. -> Reduced batch size (from 100 initially, to 10)
-- Note: in 'real' production rpc batch size can be much larger, 1000-5000
+
+Note: in 'real' production rpc batch size can be much larger, 1000-5000
 
 ### Reasoning behind solution, decisions made
 

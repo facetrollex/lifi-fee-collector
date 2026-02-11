@@ -4,6 +4,7 @@ type WorkerLoadOptions = {
   activeChain?: number;
   connectDBMock?: jest.Mock;
   disconnectDBMock?: jest.Mock;
+  collectorConstructorMock?: jest.Mock;
   collectorInstance?: {
     testConnection: jest.Mock;
     seedCursor: jest.Mock;
@@ -30,7 +31,9 @@ const loadWorkerModule = async (options: WorkerLoadOptions = {}) => {
     getPollIntervalMs: jest.fn().mockReturnValue(1000),
     getMode: jest.fn().mockReturnValue('historical'),
   };
-  const CollectorMock = jest.fn().mockImplementation(() => collectorInstance);
+  const CollectorMock =
+    options.collectorConstructorMock ??
+    jest.fn().mockImplementation(() => collectorInstance);
 
   const logger = {
     info: jest.fn(),
@@ -135,6 +138,36 @@ describe('worker entrypoint', () => {
     });
     const expectedWorkerId = `Worker ${process.pid}`;
 
+    expect(loaded.logger.error).toHaveBeenNthCalledWith(
+      1,
+      `[${expectedWorkerId}] Critical error, shutting down.`,
+    );
+    expect(loaded.disconnectDBMock).toHaveBeenCalledWith(expectedWorkerId);
+    expect(loaded.processExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('handles invalid ACTIVE_CHAIN bootstrap path and exits with code 1', async () => {
+    const collectorConstructorMock = jest.fn().mockImplementation((_workerId, chainId: number) => {
+      if (Number.isNaN(chainId)) {
+        throw new Error('invalid ACTIVE_CHAIN');
+      }
+
+      return {
+        testConnection: jest.fn(),
+        seedCursor: jest.fn(),
+        collect: jest.fn(),
+        getPollIntervalMs: jest.fn(),
+        getMode: jest.fn(),
+      };
+    });
+
+    const loaded = await loadWorkerModule({
+      activeChain: Number.NaN,
+      collectorConstructorMock,
+    });
+    const expectedWorkerId = `Worker ${process.pid}`;
+
+    expect(collectorConstructorMock).toHaveBeenCalledWith(expectedWorkerId, Number.NaN);
     expect(loaded.logger.error).toHaveBeenNthCalledWith(
       1,
       `[${expectedWorkerId}] Critical error, shutting down.`,

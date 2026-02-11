@@ -37,6 +37,31 @@ describe('LastBlock repository', () => {
     expect(updated?.blockNumber).toBe(110);
   });
 
+  it('claims non-overlapping ranges under concurrent workers', async () => {
+    await seedCursor(137, 100);
+
+    const [rangeA, rangeB] = await Promise.all([
+      claimNextRange(137, 10, 130),
+      claimNextRange(137, 10, 130),
+    ]);
+
+    const ranges = [rangeA, rangeB].filter(
+      (range): range is { fromBlock: number; toBlock: number } => range !== null,
+    );
+
+    expect(ranges).toHaveLength(2);
+    expect(new Set(ranges.map((range) => range.fromBlock)).size).toBe(2);
+
+    const sorted = [...ranges].sort((a, b) => a.fromBlock - b.fromBlock);
+    expect(sorted).toEqual([
+      { fromBlock: 100, toBlock: 109 },
+      { fromBlock: 110, toBlock: 119 },
+    ]);
+
+    const updated = await LastBlockModel.findOne({ chainId: 137 }).lean();
+    expect(updated?.blockNumber).toBe(120);
+  });
+
   it('caps the range at maxBlock when close to chain tip', async () => {
     await seedCursor(137, 100);
 

@@ -56,6 +56,13 @@ describe('Rpc utility', () => {
     expect(contract.queryFilter).toHaveBeenCalledWith('fees-filter', 100, 120);
   });
 
+  it('propagates queryFilter failures when loading events', async () => {
+    const { rpc, contract } = buildRpcWithMocks();
+    contract.queryFilter.mockRejectedValue(new Error('rpc timeout'));
+
+    await expect(rpc.loadFeeCollectorEvents(100, 120)).rejects.toThrow('rpc timeout');
+  });
+
   it('parses raw events into fee event objects', async () => {
     const { rpc, contract } = buildRpcWithMocks();
     contract.interface.parseLog.mockReturnValue({
@@ -87,8 +94,32 @@ describe('Rpc utility', () => {
     });
   });
 
+  it('returns empty result when there are no events to parse', async () => {
+    const { rpc, contract } = buildRpcWithMocks();
+
+    await expect(rpc.parseFeeCollectorEvents([])).resolves.toEqual([]);
+    expect(contract.interface.parseLog).not.toHaveBeenCalled();
+  });
+
+  it('propagates parse errors for malformed events', async () => {
+    const { rpc, contract } = buildRpcWithMocks();
+    contract.interface.parseLog.mockImplementation(() => {
+      throw new Error('malformed log');
+    });
+
+    await expect(
+      rpc.parseFeeCollectorEvents([
+        {
+          transactionHash: '0xbad',
+          logIndex: 1,
+          blockNumber: 777,
+        } as never,
+      ]),
+    ).rejects.toThrow('malformed log');
+  });
+
   it('validates chain id and deployed contract during testConnection', async () => {
-    const { rpc, provider } = buildRpcWithMocks();
+    const { rpc, provider, contract } = buildRpcWithMocks();
     provider.getNetwork.mockResolvedValue({ chainId: 137 });
     provider.getBlockNumber.mockResolvedValue(12345);
     provider.getCode.mockResolvedValue('0x1234');
@@ -96,6 +127,7 @@ describe('Rpc utility', () => {
     await expect(rpc.testConnection(137)).resolves.toBeUndefined();
     expect(provider.getBlockNumber).toHaveBeenCalledTimes(1);
     expect(provider.getCode).toHaveBeenCalledTimes(1);
+    expect(provider.getCode).toHaveBeenCalledWith(contract.address);
   });
 
   it('throws when RPC network chain id does not match expected', async () => {
@@ -112,6 +144,15 @@ describe('Rpc utility', () => {
     provider.getCode.mockResolvedValue('0x');
 
     await expect(rpc.testConnection(137)).rejects.toThrow('No contract deployed');
+  });
+
+  it('does not continue connection checks if getNetwork fails', async () => {
+    const { rpc, provider } = buildRpcWithMocks();
+    provider.getNetwork.mockRejectedValue(new Error('network unreachable'));
+
+    await expect(rpc.testConnection(137)).rejects.toThrow('network unreachable');
+    expect(provider.getBlockNumber).not.toHaveBeenCalled();
+    expect(provider.getCode).not.toHaveBeenCalled();
   });
 
   it('returns provider max block number', async () => {

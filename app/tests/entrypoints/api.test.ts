@@ -141,6 +141,56 @@ describe('api entrypoint', () => {
     });
   });
 
+  it.each([
+    ['0'],
+    ['-3'],
+  ])('fees route clamps page to 1 for edge value %s', async (page) => {
+    const findFeeEventsMock = jest.fn().mockResolvedValue({
+      data: [],
+      total: 0,
+    });
+    const loaded = await loadApiModule({ findFeeEventsMock });
+    const res = makeResponse();
+
+    await loaded.routeHandlers['/fees']?.({ query: { integrator: '137', page, limit: '20' } }, res);
+
+    expect(findFeeEventsMock).toHaveBeenCalledWith(137, 0, 20);
+    expect(res.json).toHaveBeenCalledWith({
+      data: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+  });
+
+  it.each([
+    ['0', 20],
+    ['-5', 1],
+  ])('fees route handles limit edge value %s', async (limit, expectedLimit) => {
+    const findFeeEventsMock = jest.fn().mockResolvedValue({
+      data: [],
+      total: 0,
+    });
+    const loaded = await loadApiModule({ findFeeEventsMock });
+    const res = makeResponse();
+
+    await loaded.routeHandlers['/fees']?.({ query: { integrator: '137', page: '1', limit } }, res);
+
+    expect(findFeeEventsMock).toHaveBeenCalledWith(137, 0, expectedLimit);
+    expect(res.json).toHaveBeenCalledWith({
+      data: [],
+      pagination: {
+        page: 1,
+        limit: expectedLimit,
+        total: 0,
+        totalPages: 0,
+      },
+    });
+  });
+
   it('fees route defaults to chain 137 when integrator is missing', async () => {
     const findFeeEventsMock = jest.fn().mockResolvedValue({ data: [], total: 0 });
     const loaded = await loadApiModule({ findFeeEventsMock });
@@ -150,6 +200,28 @@ describe('api entrypoint', () => {
 
     expect(findFeeEventsMock).toHaveBeenCalledWith(137, 0, 20);
     expect(res.json).toHaveBeenCalledTimes(1);
+  });
+
+  it('fees route treats empty integrator as missing and uses default chain', async () => {
+    const findFeeEventsMock = jest.fn().mockResolvedValue({ data: [], total: 0 });
+    const loaded = await loadApiModule({ findFeeEventsMock });
+    const res = makeResponse();
+
+    await loaded.routeHandlers['/fees']?.({ query: { integrator: '' } }, res);
+
+    expect(findFeeEventsMock).toHaveBeenCalledWith(137, 0, 20);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
+  it('fees route accepts numeric non-integer integrator values', async () => {
+    const findFeeEventsMock = jest.fn().mockResolvedValue({ data: [], total: 0 });
+    const loaded = await loadApiModule({ findFeeEventsMock });
+    const res = makeResponse();
+
+    await loaded.routeHandlers['/fees']?.({ query: { integrator: '137.5' } }, res);
+
+    expect(findFeeEventsMock).toHaveBeenCalledWith(137.5, 0, 20);
+    expect(res.status).not.toHaveBeenCalledWith(400);
   });
 
   it('fees route returns 500 when repository throws', async () => {

@@ -113,6 +113,17 @@ describe('Collector', () => {
     expect(() => new Collector('Worker-1', 137)).toThrow('Invalid chain config');
   });
 
+  it.each([
+    ['RPC_URL', { rpcUrl: undefined }],
+    ['CONTRACT_ADDRESS', { contractAddress: undefined }],
+    ['START_POINT', { startPoint: undefined }],
+  ] as const)('throws when %s is missing', async (_label, partialConfig) => {
+    const { Collector } = await loadCollector({
+      chainConfig: partialConfig,
+    });
+    expect(() => new Collector('Worker-1', 137)).toThrow('Invalid chain config');
+  });
+
   it('throws when start point is not numeric', async () => {
     const { Collector } = await loadCollector({
       chainConfig: { startPoint: 'abc' },
@@ -199,6 +210,28 @@ describe('Collector', () => {
     expect(mocks.markCompleted).toHaveBeenCalledWith('job-1');
   });
 
+  it('marks job completed when block range contains zero events', async () => {
+    const job = { _id: 'job-empty', fromBlock: 100, toBlock: 109, attempts: 1 };
+    const { Collector, mocks } = await loadCollector({
+      claimExpiredOrFailedMock: jest.fn().mockResolvedValue(null),
+      claimNextRangeMock: jest.fn().mockResolvedValue({ fromBlock: 100, toBlock: 109 }),
+      createJobMock: jest.fn().mockResolvedValue(job),
+      rpcClient: {
+        loadFeeCollectorEvents: jest.fn().mockResolvedValue([]),
+        parseFeeCollectorEvents: jest.fn().mockResolvedValue([]),
+        testConnection: jest.fn(),
+        getMaxBlock: jest.fn().mockResolvedValue(130),
+      },
+      upsertFeeEventsMock: jest.fn().mockResolvedValue(0),
+      markCompletedMock: jest.fn().mockResolvedValue(undefined),
+    });
+    const collector = new Collector('Worker-1', 137);
+
+    await expect(collector.collect()).resolves.toBe(true);
+    expect(mocks.upsertFeeEvents).toHaveBeenCalledWith(137, []);
+    expect(mocks.markCompleted).toHaveBeenCalledWith('job-empty');
+  });
+
   it('marks job as failed and returns false when processing fails', async () => {
     const { Collector, mocks } = await loadCollector({
       claimExpiredOrFailedMock: jest.fn().mockResolvedValue({
@@ -218,6 +251,28 @@ describe('Collector', () => {
 
     await expect(collector.collect()).resolves.toBe(false);
     expect(mocks.markFailed).toHaveBeenCalledWith('job-failed', 'rpc down');
+  });
+
+  it('bubbles error when marking failed job exhausts retries', async () => {
+    const { Collector, mocks } = await loadCollector({
+      claimExpiredOrFailedMock: jest.fn().mockResolvedValue({
+        _id: 'job-failed-hard',
+        fromBlock: 5,
+        toBlock: 6,
+        attempts: 3,
+      }),
+      rpcClient: {
+        loadFeeCollectorEvents: jest.fn().mockRejectedValue(new Error('rpc down')),
+        parseFeeCollectorEvents: jest.fn(),
+        testConnection: jest.fn(),
+        getMaxBlock: jest.fn(),
+      },
+      markFailedMock: jest.fn().mockRejectedValue(new Error('mark failed write error')),
+    });
+    const collector = new Collector('Worker-1', 137);
+
+    await expect(collector.collect()).rejects.toThrow('mark failed write error');
+    expect(mocks.markFailed).toHaveBeenCalledWith('job-failed-hard', 'rpc down');
   });
 
   it('converts non-Error failures to strings when no job exists yet', async () => {
@@ -249,5 +304,20 @@ describe('Collector', () => {
       'historical',
     );
     expect(collector.getMode()).toBe('historical');
+  });
+
+  it('keeps mode stable while lag stays inside hysteresis window', async () => {
+    const { Collector } = await loadCollector();
+    const collector = new Collector('Worker-1', 137);
+
+    // historical mode should not switch when lag is above realtime threshold
+    (collector as unknown as { updateModeByLag: (lagBlocks: number) => void }).updateModeByLag(20);
+    expect(collector.getMode()).toBe('historical');
+
+    // switch to realtime at low lag, then keep realtime until high threshold is reached
+    (collector as unknown as { updateModeByLag: (lagBlocks: number) => void }).updateModeByLag(5);
+    expect(collector.getMode()).toBe('realtime');
+    (collector as unknown as { updateModeByLag: (lagBlocks: number) => void }).updateModeByLag(20);
+    expect(collector.getMode()).toBe('realtime');
   });
 });

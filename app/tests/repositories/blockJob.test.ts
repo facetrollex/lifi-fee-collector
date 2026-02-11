@@ -47,6 +47,14 @@ describe('BlockJob repository', () => {
     expect(claimed?.attempts).toBe(3);
   });
 
+  it('enforces uniqueness for chainId and fromBlock', async () => {
+    await createJob(137, 100, 199, 'worker-a', 60_000);
+
+    await expect(createJob(137, 100, 299, 'worker-b', 60_000)).rejects.toThrow(
+      /duplicate key|E11000/i,
+    );
+  });
+
   it('claims a processing job with an expired lease', async () => {
     await BlockJobModel.create({
       chainId: 137,

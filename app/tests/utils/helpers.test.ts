@@ -98,6 +98,29 @@ describe('helpers', () => {
     expect(mocks.logger.error).toHaveBeenCalledTimes(1);
   });
 
+  it('applies linear retry backoff delays', async () => {
+    jest.useFakeTimers();
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const { withRetry } = await loadHelpers({
+      testDBConnectionMock: jest.fn().mockResolvedValue(true),
+    });
+    const fn = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('first'))
+      .mockRejectedValueOnce(new Error('second'))
+      .mockResolvedValueOnce('done');
+
+    const promise = withRetry(fn, 'Worker-E', 3, 7);
+    await jest.advanceTimersByTimeAsync(21);
+
+    await expect(promise).resolves.toBe('done');
+    const delays = setTimeoutSpy.mock.calls
+      .map(([, delay]) => delay)
+      .filter((delay): delay is number => typeof delay === 'number');
+
+    expect(delays).toEqual(expect.arrayContaining([7, 14]));
+  });
+
   it('sleeps for provided duration', async () => {
     const { sleep } = await loadHelpers();
     jest.useFakeTimers();
