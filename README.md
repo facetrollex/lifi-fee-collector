@@ -1,5 +1,28 @@
 # lf-fee-collector
 
+### Unit tests (Jest)
+
+All tests are located under `app/tests`.
+
+```bash
+cd app
+npm test
+```
+
+Watch mode:
+
+```bash
+cd app
+npm run test:watch
+```
+
+Coverage (global threshold is 90% for statements/branches/functions/lines):
+
+```bash
+cd app
+npm run test:coverage
+```
+
 ### Run (Docker)
 
 ```bash
