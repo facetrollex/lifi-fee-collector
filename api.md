@@ -1,4 +1,4 @@
-# API documentation
+# API Documentation
 
 Base URL (default local): `http://localhost:9999`
 

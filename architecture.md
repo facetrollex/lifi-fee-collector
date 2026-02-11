@@ -1,4 +1,4 @@
-# lf-fee-collector architecture
+# Architecture Documentation
 
 ## Purpose
 
