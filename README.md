@@ -7,6 +7,7 @@ It runs a background worker for chain sync and an API for fee data retrieval.
 
 - Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - API: [`API.md`](API.md)
+- Notes: [`NOTES.MD`](NOTES.MD)
 
 ## 1. Requirements to run
 
