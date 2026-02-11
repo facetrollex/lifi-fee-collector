@@ -1,6 +1,7 @@
 # Notes
 
-## Summary
+## INPUT
+### Summary
 
 We have a Smart Contract which is responsible for collecting fees for our
 transactions when certain conditions are met. This contract is called the
@@ -13,7 +14,7 @@ We would like to have the functionality to scan those emitted events, store them
 our database and request them based on the integrator that the fees were collected
 for.
 
-## Acceptance Criteria
+### Acceptance Criteria
 
 - We would like to have a tool that scrapes the contract for emitted FeesCollected event on a given chain
 - The tool should be able to be started at any time to retrieve new events
@@ -23,13 +24,16 @@ for.
 - Optional 2: Wrap the application into a usable Docker image
 - The solution should be built in TypeScript, it should include all information on how to run it
 
-## Implementation Consideration
+### Implementation Consideration
 
 - You can focus on the Polygon Chain for now, but the concept should take into
 consideration that we want this for all our EVM chains
 - You can use 78600000 as the oldest block to take into consideration
 
-## Functional Requirements
+----
+
+## Output
+### Functional Requirements
 
 - tool that scrapes contract for emitted FeesCollected event on a given chain
 - tool should be able to be started at any time to retrieve new events
@@ -38,14 +42,14 @@ consideration that we want this for all our EVM chains
 - API tool that allows retrieval of all collected events for a given integrator.
 - tool should be wrapped into a usable Docker image.
 
-## Non Functional Requirements
+### Non Functional Requirements
 
 - Efficiency: application should work efficiently, should not rescan same blocks again
 - Operability: can be started any time
 - Extensibility: application should accommodate all supported EVM chains (at some point)
 - Assumption(!) - Scalability: Worker should be able to work via multiple instances (horizontal scaling)
 
-## Constraints
+### Constraints
 
 - Implementation Language: TS
 - Typegoose package for modeling
@@ -54,7 +58,7 @@ consideration that we want this for all our EVM chains
 - Chain scope: Polygon
 - Historical Start Point: 78600000 as the oldest block to consider
 
-## AI Usage
+### AI Usage
 
 - AI validation for FR/NFR
 - Initial Prototype:
@@ -69,14 +73,15 @@ consideration that we want this for all our EVM chains
   - multiple instances -> single batch available (real-time scrape)
   - multiple instances -> error validation between steps, retry process
   - integrator -> to chainId replacement process
+- Documentation
 
-## Challenges / Blockers
+### Challenges / Blockers
 
 - Deduplication process (multiple instances) with MongoDB -> leaseExpired functionality added (for Jobs)
 - Batch size (for scraping): public polygon load balancer routes 'free tier' requests to various backend providers and some of them have extremely low or even broken eth_get_Logs limits. -> Reduced batch size (from 100 initially, to 10)
 - Note: in 'real' production rpc batch size can be much larger, 1000-5000
 
-## Reasoning behind solution, decisions made
+### Reasoning behind solution, decisions made
 
 - Single Docker image with node / mongo as per requirements: Acceptance Criteria -> Optional 2 (docker image (not images)) -> UPD: changed this to 2 images as it is anti-pattern to do this under single image (also it giving a lot of complexity to manage such solution in production)
 - Splitting API / Worker as 2 separate entrypoints, as we might need to scale worker based on 'needs' to scrape faster (in such case no reason to scale API)
