@@ -1,6 +1,9 @@
 import { logger } from './logger.js';
 import { connectDB, testDBConnection } from './mongo.js';
 
+const toErrorMessage = (error: unknown): string => {
+  return error instanceof Error ? error.message : String(error);
+};
 
 // Retry function which is used for database related operations.
 async function withRetry<T>(
@@ -26,7 +29,7 @@ async function withRetry<T>(
       } catch (err) {
         if (attempt === maxAttempts) {
             logger.error(
-                `[${entity}] Retry failed after ${maxAttempts} attempts. Error: ${err}`
+                `[${entity}] Retry failed after ${maxAttempts} attempts. Error: ${toErrorMessage(err)}`
             );
             throw err;
         }
@@ -41,6 +44,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 export { 
+    toErrorMessage,
     withRetry, 
     sleep 
 };

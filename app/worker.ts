@@ -6,12 +6,37 @@ import { sleep } from './utils/helpers.js';
 
 const workerId = `Worker ${process.pid}`;
 
+const shutdown = async (exitCode: number): Promise<void> => {
+  await disconnectDB(workerId);
+  process.exit(exitCode);
+};
+
+const registerProcessHandlers = (): void => {
+  process.on('SIGINT', async () => {
+    await shutdown(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    await shutdown(0);
+  });
+
+  process.on('uncaughtException', async (error) => {
+    logger.error(error);
+    await shutdown(1);
+  });
+
+  process.on('unhandledRejection', async (error) => {
+    logger.error(error);
+    await shutdown(1);
+  });
+};
+
 async function main(): Promise<void> {
   await connectDB(workerId);
 
   logger.info(`[${workerId}] is started.`);
 
-  const collector: Collector = new Collector(workerId, activeChain);
+  const collector = new Collector(workerId, activeChain);
 
   await collector.testConnection();
   await collector.seedCursor();
@@ -20,7 +45,7 @@ async function main(): Promise<void> {
     const didWork = await collector.collect();
 
     if (!didWork) {
-      logger.info(`[${workerId}] Nothing to do this iteration.`); 
+      logger.info(`[${workerId}] Nothing to do this iteration.`);
     }
 
     const pollIntervalMs = collector.getPollIntervalMs();
@@ -32,28 +57,7 @@ async function main(): Promise<void> {
 main().catch(async (err) => {
   logger.error(`[${workerId}] Critical error, shutting down.`);
   logger.error(err);
-  await disconnectDB(workerId);
-  process.exit(1);
+  await shutdown(1);
 });
 
-process.on('SIGINT', async () => {
-  await disconnectDB(workerId);
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await disconnectDB(workerId);
-  process.exit(0);
-});
-
-process.on('uncaughtException', async (err) => {
-  logger.error(err);
-  await disconnectDB(workerId);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', async (err) => {
-  logger.error(err);
-  await disconnectDB(workerId);
-  process.exit(1);
-});
+registerProcessHandlers();

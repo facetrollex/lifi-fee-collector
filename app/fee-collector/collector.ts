@@ -11,7 +11,7 @@ import {
   type BlockJobDoc,
 } from '../repositories/BlockJob.js';
 import { upsertFeeEvents } from '../repositories/FeeEvent.js';
-import { withRetry } from '../utils/helpers.js';
+import { toErrorMessage, withRetry } from '../utils/helpers.js';
 
 type CollectorMode = 'historical' | 'realtime';
 
@@ -108,7 +108,7 @@ class Collector {
       logger.info(`[${this.workerId}] Stage 5: Completed. Job ${jobId} done.`);
       //--------------------------------
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = toErrorMessage(err);
       logger.error(`[${this.workerId}] Job failed: ${errorMsg}`);
 
       if(job) {

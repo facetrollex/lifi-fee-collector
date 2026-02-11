@@ -1,16 +1,25 @@
-import express, { type Express } from 'express';
+import express from 'express';
 import { logger } from './utils/logger.js';
 import { connectDB, disconnectDB } from './utils/mongo.js';
 import { appConfig } from './config.js';
 import { findFeeEvents } from './repositories/FeeEvent.js';
+import { parseFeesQuery, INTERNAL_SERVER_ERROR } from './api/feesQuery.js';
+import { toErrorMessage } from './utils/helpers.js';
 
-const DEFAULT_CHAIN_ID = 137; // polygon mainnet
+const registerProcessHandlers = (): void => {
+  const gracefulShutdown = async (): Promise<void> => {
+    await disconnectDB();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', gracefulShutdown);
+};
 
 async function main(): Promise<void> {
   await connectDB();
 
-  const app: Express = express();
-
+  const app = express();
 
   app.get('/', (_req, res) => {
     res.status(200).send('Api Running');
@@ -18,16 +27,13 @@ async function main(): Promise<void> {
 
   app.get('/fees', async (req, res) => {
     try {
-      const integratorParam = req.query.integrator as string | undefined;
-      const chainId = integratorParam ? Number(integratorParam) : DEFAULT_CHAIN_ID;
+      const parsedQuery = parseFeesQuery(req.query);
 
-      if (Number.isNaN(chainId)) {
-        return res.status(400).json({ error: 'Invalid integrator value. Expected numeric chain id.' });
+      if (!parsedQuery.ok) {
+        return res.status(400).json({ error: parsedQuery.error });
       }
 
-      const page = Math.max(Number(req.query.page) || 1, 1);
-      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-      const skip = (page - 1) * limit;
+      const { chainId, page, limit, skip } = parsedQuery.value;
 
       const { data, total } = await findFeeEvents(chainId, skip, limit);
 
@@ -40,9 +46,9 @@ async function main(): Promise<void> {
           totalPages: Math.ceil(total / limit),
         },
       });
-    } catch (err) {
-      logger.error(err);
-      res.status(500).json({ error: 'Internal server error' });
+    } catch (error) {
+      logger.error(error);
+      res.status(500).json({ error: INTERNAL_SERVER_ERROR });
     }
   });
 
@@ -52,19 +58,12 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  logger.error(`[API] ${err.message}`);
+
+registerProcessHandlers();
+
+main().catch((error) => {
+  logger.error(`[API] ${toErrorMessage(error)}`);
   process.exit(1);
-});
-
-process.on('SIGINT', async () => {
-  await disconnectDB();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await disconnectDB();
-  process.exit(0);
 });
 
 

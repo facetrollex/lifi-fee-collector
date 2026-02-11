@@ -98,6 +98,7 @@ const loadCollector = async (options: CollectorSetupOptions = {}) => {
     upsertFeeEvents: mocks.upsertFeeEvents,
   }));
   jest.unstable_mockModule(helpersModulePath, () => ({
+    toErrorMessage: jest.fn((error: unknown) => (error instanceof Error ? error.message : String(error))),
     withRetry: mocks.withRetry,
   }));
 

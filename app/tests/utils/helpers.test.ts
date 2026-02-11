@@ -42,6 +42,18 @@ const loadHelpers = async (
 };
 
 describe('helpers', () => {
+  it('toErrorMessage returns error message for Error instances', async () => {
+    const { toErrorMessage } = await loadHelpers();
+
+    expect(toErrorMessage(new Error('boom'))).toBe('boom');
+  });
+
+  it('toErrorMessage stringifies non-Error values', async () => {
+    const { toErrorMessage } = await loadHelpers();
+
+    expect(toErrorMessage('broken')).toBe('broken');
+  });
+
   it('returns the result immediately on first successful attempt', async () => {
     const { withRetry, mocks } = await loadHelpers();
     const fn = jest.fn().mockResolvedValue('ok');
