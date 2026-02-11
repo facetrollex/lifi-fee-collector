@@ -4,6 +4,8 @@ import { connectDB, disconnectDB } from './utils/mongo.js';
 import { appConfig } from './config.js';
 import { findFeeEvents } from './repositories/FeeEvent.js';
 
+const DEFAULT_CHAIN_ID = 137; // polygon mainnet
+
 async function main(): Promise<void> {
   await connectDB();
 
@@ -17,11 +19,10 @@ async function main(): Promise<void> {
   app.get('/fees', async (req, res) => {
     try {
       const integratorParam = req.query.integrator as string | undefined;
-      const chainId = integratorParam ? Number(integratorParam) : 137;
+      const chainId = integratorParam ? Number(integratorParam) : DEFAULT_CHAIN_ID;
 
       if (Number.isNaN(chainId)) {
-        res.status(400).json({ error: 'Invalid integrator value. Expected numeric chain id.' });
-        return;
+        return res.status(400).json({ error: 'Invalid integrator value. Expected numeric chain id.' });
       }
 
       const page = Math.max(Number(req.query.page) || 1, 1);

@@ -1,51 +1,42 @@
 # lf-fee-collector
 
-### Unit tests (Jest)
+Lightweight service that indexes `FeesCollected` events from the LiFi FeeCollector contract and stores them in MongoDB.  
+It runs a background worker for chain sync and an API for fee data retrieval.
 
-All tests are located under `app/tests`.
+## Links
 
-```bash
-cd app
-npm test
-```
+- Architecture: [`architecture.md`](architecture.md)
+- API: [`api.md`](api.md)
 
-Watch mode:
+## 1. Requirements to run
 
-```bash
-cd app
-npm run test:watch
-```
+- Docker + Docker Compose
+- Node.js 20+ and npm (for local test commands)
 
-Coverage (global threshold is 90% for statements/branches/functions/lines):
+## 2. First start
 
 ```bash
-cd app
-npm run test:coverage
+npm run setup
 ```
 
-### Run (Docker)
+Then review `docker/.env` and update values if needed.
+
+## 3. Run app
 
 ```bash
-docker compose -f docker/docker-compose.yml up --build
+npm run start
 ```
 
-### Verify
+Quick check:
 
 ```bash
 curl http://localhost:9999/
 ```
+Note: Port can be changed under environment configuration, 9999 - default
 
-### Stop
+## 4. Testing
 
 ```bash
-docker compose -f docker/docker-compose.yml down
+npm run test
+npm run test:coverage
 ```
-
-
-Mongo logs:
-```bash
-docker compose -f docker/docker-compose.yml exec mongo sh -c "tail -f /data/db/mongod.log"
-```
-
-clean
-docker compose -f docker/docker-compose.yml exec mongo mongosh --quiet --eval "use lf_fee_collector" --eval "db.getCollectionNames().forEach(c => { db[c].deleteMany({}); print('cleared: ' + c); })"

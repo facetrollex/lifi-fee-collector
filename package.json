@@ -6,6 +6,8 @@
       "start": "docker compose -f docker/docker-compose.yml up --build",
       "setup": "npm run setup:config && npm run setup:modules",
       "setup:config": "cd docker && cp .env.example .env",
-      "setup:modules": "cd app && npm install"
+      "setup:modules": "cd app && npm install",
+      "test": "cd app && npm run test",
+      "test:coverage": "cd app && npm run test:coverage"
     }
   }
